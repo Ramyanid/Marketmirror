@@ -315,10 +315,14 @@ if not is_results:
             </style>
             """, unsafe_allow_html=True)
             try:
-                st.session_state.briefing = run_analysis(company, industry_hint, focus_area)
+                result = run_analysis(company, industry_hint, focus_area)
                 loader.empty()
-                st.session_state["_go_results"] = True
-                st.rerun()
+                if result.get("status") == "not_found":
+                    st.warning(result.get("message", "We couldn't identify that company. Check the spelling or add an industry hint."))
+                else:
+                    st.session_state.briefing = result
+                    st.session_state["_go_results"] = True
+                    st.rerun()
             except Exception as e:
                 loader.empty()
                 st.error(f"Couldn't complete the analysis: {e}")
