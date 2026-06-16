@@ -13,7 +13,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        912,
+        880,
         -224
       ],
       "webhookId": "discover-miagent-webhook"
@@ -214,6 +214,57 @@
       ],
       "id": "9f3ae612-a1e1-48c8-ae75-7802ca477993",
       "name": "Call 'Discover MIagent-version1RN - Research Phase'"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "907d90c1-8a55-4ac3-b799-624f6b6572ef",
+              "leftValue": "={{ $json.competitors ? $json.competitors.length : 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1824,
+        -480
+      ],
+      "id": "7f0f01bf-ab51-499b-8ba5-d240b99c858b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"not_found\",\n  \"message\": \"We couldn't identify \\\"{{ $json.target_company }}\\\" as a real company. Please check the spelling or add an industry hint.\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2096,
+        -464
+      ],
+      "id": "672fff55-8862-416e-b32e-e05701092dd7",
+      "name": "Respond to Webhook1"
     }
   ],
   "pinData": {},
@@ -255,7 +306,7 @@
       "main": [
         [
           {
-            "node": "Call 'Discover MIagent-version1RN - Research Phase'",
+            "node": "If",
             "type": "main",
             "index": 0
           }
@@ -299,6 +350,24 @@
           }
         ]
       ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Call 'Discover MIagent-version1RN - Research Phase'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -307,11 +376,12 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "78b639b9-38a1-4c95-9678-9e59664e8206",
+  "versionId": "eea1b239-812e-49c1-9392-5eca2fe9a33e",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "01fcb9fb97b3ebf0dede6f97c5fc33f2cdd542e39d684f6789db85e728189967"
   },
+  "nodeGroups": [],
   "id": "wogfWVFCxi3xWDrK",
   "tags": []
 }
