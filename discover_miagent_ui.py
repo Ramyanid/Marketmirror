@@ -30,7 +30,12 @@ h1, h2, h3 { font-family: 'Inter', -apple-system, sans-serif; letter-spacing: -.
     display:inline-flex; align-items:center; gap:8px; margin-top:18px;
     background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28);
     padding:8px 16px; border-radius:999px; font-size:.86rem; font-weight:600;
-    white-space:normal; line-height:1.3;
+    white-space:normal; line-height:1.3; color:#fff; text-decoration:none;
+    cursor:pointer; transition:background .2s, box-shadow .2s;
+}
+.hero-pill:hover {
+    background:rgba(255,255,255,.28); box-shadow:0 4px 16px rgba(0,0,0,.15);
+    color:#fff; text-decoration:none;
 }
 /* cards */
 .comp-card {
@@ -189,7 +194,7 @@ if not is_results:
       <h1>See your competition clearly.</h1>
       <p>Enter a company and MarketMirror discovers its closest rivals, researches each,
          and hands you a prescriptive briefing — strengths, gaps, and a feature scorecard.</p>
-      <div class="hero-pill">✨ Free basic analysis — results in less than 5 minutes</div>
+      <a href="#run-a-free-analysis" class="hero-pill">✨ Try free basic analysis — results in less than 5 minutes</a>
     </div>
     """, unsafe_allow_html=True)
     st.write("")
