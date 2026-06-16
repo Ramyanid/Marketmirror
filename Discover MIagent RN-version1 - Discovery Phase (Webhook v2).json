@@ -1,0 +1,317 @@
+{
+  "name": "Discover MIagent RN-version1 - Discovery Phase (Webhook v2)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "discover-miagent",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "48fe87c7-fba6-4c17-9f5a-94eba1ac214b",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -224
+      ],
+      "webhookId": "discover-miagent-webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "company",
+              "value": "={{ $json.body.company }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "industry_hint",
+              "value": "={{ $json.body.industry_hint || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "focus_area",
+              "value": "={{ $json.body.focus_area || \"\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6daec947-a57a-47bc-9cf4-ae47693407ce",
+      "name": "Set Inputs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1136,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Company: {{ $json.company }}\nIndustry hint: {{ $json.industry_hint || \"none specified\" }}\nFocus area: {{ $json.focus_area || \"none specified\" }}",
+        "options": {
+          "systemMessage": "You are a competitive intelligence researcher. Given a company name, identify its closest competitors.\n\nAlways follow these steps:\n1. Use the web search tool to confirm what the company does and what market/industry it operates in. Always search — do not rely on prior knowledge, even for well-known companies.\n2. If the company name could match multiple companies, choose the most prominent/likely one. If an industry hint is provided, use it to disambiguate. State clearly in \"interpreted_as\" which specific company you identified.\n3. Identify up to 4 of its closest competitors in that same market. Rank by closeness of competition — overlap in products/services, target customers, and market segment. Do NOT rank by size alone.\n\nQuality gate: Only include genuine direct competitors. If only 2 or 3 real competitors exist, return only those. Never pad the list to reach 4.\n\nWhen you have finished researching, output your FINAL ANSWER as a single raw JSON object and NOTHING else. No explanation, no markdown, no code fences, no text before or after. The JSON must exactly match this shape:\n\n{\n  \"target_company\": \"string\",\n  \"interpreted_as\": \"string\",\n  \"inferred_industry\": \"string\",\n  \"industry_hint\": \"string or null\",\n  \"focus_area\": \"string or null\",\n  \"competitors\": [\n    { \"name\": \"string\", \"rationale\": \"string\" }\n  ]\n}\n\nThe competitors array must contain between 1 and 4 items. Echo the industry_hint and focus_area values that were provided in the input (use null if they were not provided). Ensure the JSON is valid: all strings quoted, no trailing commas, all braces and brackets closed."
+        }
+      },
+      "id": "26820ae7-5fb6-45b6-9796-ed55967b41f4",
+      "name": "Discovery Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1392,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the agent's plain-text output into clean JSON.\n// Handles: markdown code fences, stray text before/after the JSON,\n// and minor trailing-comma issues. Falls back gracefully on failure.\n\nconst item = $input.first();\nlet raw = item.json.output ?? item.json.text ?? '';\n\nif (typeof raw !== 'string') {\n  raw = JSON.stringify(raw);\n}\n\n// 1. Strip markdown code fences if present (```json ... ``` or ``` ... ```)\nraw = raw.replace(/```(?:json)?/gi, '').trim();\n\n// 2. Extract the outermost JSON object: from first { to last }\nconst firstBrace = raw.indexOf('{');\nconst lastBrace = raw.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {\n  raw = raw.slice(firstBrace, lastBrace + 1);\n}\n\n// 3. Remove trailing commas before } or ]\nraw = raw.replace(/,\\s*([}\\]])/g, '$1');\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (err) {\n  // Return a structured error so Streamlit can display something useful\n  return [{\n    json: {\n      error: 'JSON_PARSE_FAILED',\n      message: err.message,\n      raw_output: item.json.output ?? item.json.text ?? ''\n    }\n  }];\n}\n\n// Light validation / normalization\nif (!Array.isArray(parsed.competitors)) {\n  parsed.competitors = [];\n}\nparsed.competitors = parsed.competitors.slice(0, 3);\nif (parsed.industry_hint === undefined) parsed.industry_hint = null;\nif (parsed.focus_area === undefined) parsed.focus_area = null;\n\nreturn [{ json: parsed }];"
+      },
+      "id": "f84c8db7-69a5-4af4-8593-005eec030f02",
+      "name": "Parse JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "1463a029-28d2-411b-bfea-6afa53e1b20c",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "b82f115e-8a28-4438-b296-7effedacba4b",
+      "name": "Nebius Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1312,
+        0
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "qFwA7pBIxAoU8De9",
+          "name": "OpenAI account 3"
+        }
+      },
+      "notes": "TODO: Attach the OpenAI-type credential whose Base URL = https://api.tokenfactory.nebius.com/v1 and API key = your Nebius key. Temperature is set to 0 for deterministic JSON."
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {
+          "topic": "general",
+          "search_depth": "basic",
+          "max_results": 5
+        }
+      },
+      "id": "e330a1b5-698d-401a-8d65-fd05ee8913a2",
+      "name": "Tavily Search",
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        0
+      ],
+      "credentials": {
+        "tavilyApi": {
+          "id": "D4SaDmj9W1N5fRfs",
+          "name": "Tavily account"
+        }
+      },
+      "notes": "TODO: Attach your Tavily credential. If it imports as unrecognized, delete and re-add the Tavily node from your panel, then reconnect to the Discovery Agent Tool input."
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "gsw4IF5lA28KKN4K",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/gsw4IF5lA28KKN4K",
+          "cachedResultName": "My project — Discover MIagent-version1RN - Research Phase"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "aNumber": 0
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "aField",
+              "displayName": "aField",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "aNumber",
+              "displayName": "aNumber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "thisFieldAcceptsAnyType",
+              "displayName": "thisFieldAcceptsAnyType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "anArray",
+              "displayName": "anArray",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1872,
+        -224
+      ],
+      "id": "9f3ae612-a1e1-48c8-ae75-7802ca477993",
+      "name": "Call 'Discover MIagent-version1RN - Research Phase'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Inputs": {
+      "main": [
+        [
+          {
+            "node": "Discovery Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discovery Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON": {
+      "main": [
+        [
+          {
+            "node": "Call 'Discover MIagent-version1RN - Research Phase'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nebius Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Discovery Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Search": {
+      "ai_tool": [
+        [
+          {
+            "node": "Discovery Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "Call 'Discover MIagent-version1RN - Research Phase'": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "78b639b9-38a1-4c95-9678-9e59664e8206",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "01fcb9fb97b3ebf0dede6f97c5fc33f2cdd542e39d684f6789db85e728189967"
+  },
+  "id": "wogfWVFCxi3xWDrK",
+  "tags": []
+}

@@ -1,0 +1,146 @@
+{
+  "name": "Discover MIagent-version1 - Synthesis PhaseRN",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Build a compact text summary of all competitor profiles to feed the\n// synthesis LLM. Keeps the prompt focused and avoids passing huge JSON.\nconst input = $input.first().json;\n\nconst target = input.target_company ?? 'the target company';\nconst industry = input.inferred_industry ?? '';\nconst focus = input.focus_area ?? '';\nconst competitors = Array.isArray(input.competitors) ? input.competitors : [];\n\nlet block = `Target company: ${target}\\nIndustry: ${industry}\\nFocus area: ${focus || 'none specified'}\\n\\nCOMPETITORS:\\n`;\n\nfor (const c of competitors) {\n  block += `\\n--- ${c.name} (threat: ${c.threat_level ?? 'n/a'}) ---\\n`;\n  block += `Pricing: ${c.pricing ?? 'n/a'}\\n`;\n  const feats = Array.isArray(c.key_features) ? c.key_features.join('; ') : (c.key_features ?? '');\n  block += `Key features: ${feats}\\n`;\n  block += `Positioning: ${c.positioning ?? ''}\\n`;\n  const news = Array.isArray(c.recent_news) ? c.recent_news.join('; ') : (c.recent_news ?? '');\n  block += `Recent news: ${news}\\n`;\n  block += `Digital/ecommerce presence: ${c.digital_presence ?? 'n/a'}\\n`;\n}\n\nreturn [{\n  json: {\n    target_company: target,\n    inferred_industry: industry,\n    focus_area: focus,\n    competitors: competitors,\n    competitor_brief: block\n  }\n}];"
+      },
+      "id": "6892ec47-998c-4ce4-81e6-c49dcbeee75b",
+      "name": "Build Competitor Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "notes": "Condenses the competitor profiles into a single text block (competitor_brief) for the synthesis prompt, while keeping the structured competitors array for the final output."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Produce a competitive analysis briefing for {{ $json.target_company }}.\n\n{{ $json.competitor_brief }}",
+        "options": {
+          "systemMessage": "You are a senior competitive strategy analyst. You are given profiles of several competitors of a target company, including each competitor's digital/ecommerce presence as observed from their websites. Produce an executive competitive briefing that is PRESCRIPTIVE — it should help the target company act.\n\nYour analysis must:\n1. Summarize the competitive landscape in 2-3 sentences.\n2. For each competitor, identify their key STRENGTHS — where they are strong or beat the target company.\n3. Identify the target company's GAPS / WEAKNESSES that these competitors expose — places where the target is behind or exposed.\n4. For each gap, give a hedged, actionable RECOMMENDATION (use language like 'consider', 'evaluate', 'explore' — never assert as a directive). Tie each recommendation to the specific competitor and evidence that exposed it.\n5. Assign a priority (High / Medium / Low) to each gap.\n6. Separately, analyze DIGITAL / ECOMMERCE GAPS: based on the competitors' digital/ecommerce presence described in the data, identify where the target company appears to be behind digitally (e.g. online ordering, customer portals, digital product tools, website sophistication, ecommerce capabilities). Give observation + hedged recommendation + priority for each.\nScore every competitor on these six features using a 1-5 scale (1 = weak/absent, 5 = strong/best-in-class), grounded ONLY in the data provided. If evidence for a feature is insufficient, assign 3. Produce one feature_scores entry per competitor, and use the EXACT same six feature names for every competitor so the scores form a complete grid: Pricing, Product Breadth, Recent Innovation, Digital/Ecommerce, Market Positioning, Support.\n\nGround everything in the competitor data provided. Do not invent facts. If a focus area was specified, weight the analysis toward that aspect.\n\n\nOutput your FINAL ANSWER as a single raw JSON object and NOTHING else. No explanation, no markdown, no code fences. It must exactly match this shape:\n\n{\n  \"summary\": \"string — 2-3 sentence landscape summary\",\n  \"competitor_strengths\": [\n    { \"competitor\": \"string\", \"strengths\": [\"string\"] }\n  ],\n  \"gaps_and_recommendations\": [\n    {\n      \"gap\": \"string — where the target is exposed/behind\",\n      \"evidence\": \"string — grounded in competitor data\",\n      \"recommendation\": \"string — hedged and actionable\",\n      \"priority\": \"High | Medium | Low\",\n      \"competitor_driving_it\": \"string\"\n    }\n  ],\n  \"digital_gaps\": [\n    {\n      \"observation\": \"string — a digital/ecommerce gap seen vs competitors\",\n      \"evidence\": \"string — grounded in the competitors' digital presence\",\n      \"recommendation\": \"string — hedged and actionable\",\n      \"priority\": \"High | Medium | Low\"\n    }\n  ],\n\"feature_scores\": [\n    {\n      \"competitor\": \"string — must exactly match a competitor name above\",\n      \"scores\": {\n        \"Pricing\": 0,\n        \"Product Breadth\": 0,\n        \"Recent Innovation\": 0,\n        \"Digital/Ecommerce\": 0,\n        \"Market Positioning\": 0,\n        \"Support\": 0\n      }\n    }\n  ]\n\nProvide 1-5 gaps_and_recommendations and 1-5 digital_gaps. If there is genuinely no digital gap, return a single digital_gaps entry noting parity. Ensure valid JSON: all strings quoted, no trailing commas, all braces and brackets closed."
+        }
+      },
+      "id": "df8fae82-930f-4d40-89f2-643279468b56",
+      "name": "Synthesis Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        480,
+        0
+      ],
+      "notes": "No tools needed — pure synthesis over the data already gathered. Reasons over the competitor brief to produce strengths, gaps, and recommendations."
+    },
+    {
+      "parameters": {
+        "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "85fa3564-a343-42d3-9b90-209dc55a2515",
+      "name": "Nebius Chat Model (TODO attach credential)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        400,
+        224
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "qFwA7pBIxAoU8De9",
+          "name": "OpenAI account 3"
+        }
+      },
+      "notes": "TODO: Attach the OpenAI-type credential (Nebius base URL). Temperature 0.2 — slightly above 0 to allow a bit of analytical nuance in recommendations, but still tight enough for clean JSON."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the synthesis JSON and merge it with the competitor data into one\n// complete briefing object to return to the caller (and ultimately Streamlit).\nconst item = $input.first();\nlet raw = item.json.output ?? item.json.text ?? '';\nif (typeof raw !== 'string') raw = JSON.stringify(raw);\n\nraw = raw.replace(/```(?:json)?/gi, '').trim();\nconst firstBrace = raw.indexOf('{');\nconst lastBrace = raw.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {\n  raw = raw.slice(firstBrace, lastBrace + 1);\n}\nraw = raw.replace(/,\\s*([}\\]])/g, '$1');\n\n// Pull the upstream competitor data + context from the Build Competitor Brief node.\nlet ctx = {};\ntry {\n  ctx = $('Build Competitor Brief').first().json;\n} catch (e) { ctx = {}; }\n\nlet synth;\ntry {\n  synth = JSON.parse(raw);\n} catch (err) {\n  synth = {\n    summary: 'Synthesis parse error.',\n    competitor_strengths: [],\n    gaps_and_recommendations: [],\n    _parse_error: err.message,\n    _raw_output: item.json.output ?? item.json.text ?? ''\n  };\n}\n\n// Assemble the final briefing.\nreturn [{\n  json: {\n    target_company: ctx.target_company ?? '',\n    inferred_industry: ctx.inferred_industry ?? '',\n    focus_area: ctx.focus_area ?? '',\n    competitors: ctx.competitors ?? [],\n    summary: synth.summary ?? '',\n    competitor_strengths: synth.competitor_strengths ?? [],\n    gaps_and_recommendations: synth.gaps_and_recommendations ?? [],\n    digital_gaps: synth.digital_gaps ?? [],\n    feature_scores: synth.feature_scores || [],\n    generated_at: new Date().toISOString(),\n    parse_error: synth._parse_error ?? ''\n  }\n}];"
+      },
+      "id": "032db35c-7490-4bd4-8ad7-7499fab45e01",
+      "name": "Assemble Briefing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        0
+      ],
+      "notes": "Parses synthesis output and merges it with the competitor profiles into the final complete briefing object that gets returned to the caller."
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "47b5849f-3b60-465a-b58d-534ee9ac4198",
+      "name": "When Executed by Another Workflow"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Build Competitor Brief": {
+      "main": [
+        [
+          {
+            "node": "Synthesis Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nebius Chat Model (TODO attach credential)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Synthesis Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesis Agent": {
+      "main": [
+        [
+          {
+            "node": "Assemble Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Build Competitor Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "92430f62-e5d6-4271-902e-924c3acc9b13",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "01fcb9fb97b3ebf0dede6f97c5fc33f2cdd542e39d684f6789db85e728189967"
+  },
+  "id": "X8LxQUx0C5xKtMUM",
+  "tags": []
+}

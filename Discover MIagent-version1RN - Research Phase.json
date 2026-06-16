@@ -1,0 +1,571 @@
+{
+  "name": "Discover MIagent-version1RN - Research Phase",
+  "nodes": [
+    {
+      "parameters": {
+        "fieldToSplitOut": "competitors",
+        "options": {
+          "destinationFieldName": "competitor"
+        }
+      },
+      "id": "c9267b53-5672-4054-89ed-28f053850e37",
+      "name": "Split Competitors",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1376,
+        448
+      ],
+      "notes": "Fans the competitors array out into one item per competitor. Each item also keeps the parent context fields via 'Include Other Input Fields' if needed."
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "032ca9c8-5df6-42e7-b77f-465928c4ac9e",
+      "name": "Carry Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        176
+      ],
+      "disabled": true,
+      "notes": "OPTIONAL/disabled. Only needed if Split Out does not carry parent fields. If competitor items lose target_company/industry/focus_area, enable this and map them. Left disabled by default; Split Out with 'Include Other Input Fields' usually handles it."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Target company being analyzed: {{ $json.target_company }}\nIndustry: {{ $json.inferred_industry }}\nFocus area: {{ $json.focus_area || \"none specified — cover all categories evenly\" }}\n\nCompetitor to research: {{ $json.competitor.name }}\nWhy they compete: {{ $json.competitor.rationale }}",
+        "options": {
+          "systemMessage": "You are a competitive intelligence researcher producing a profile of ONE competitor.\n\nYou have two tools:\n- Search (basic/cheap): finds web pages and returns snippets + URLs. Use it to DISCOVER which pages are relevant — pricing page, product/features pages, recent news.\n- Extract: given a specific URL, returns that page's full content. This is how you get real depth.\n\nWorkflow: Use Search first to locate the competitor's key pages. Then use Extract on the most valuable URLs — especially the pricing page and the main product/features page — to read them in full. Do not rely on search snippets alone for pricing and features; extract the actual pages. Search is for finding; Extract is for reading. Make several searches and extract 1-3 of the most important pages.\n\nExtract these categories about the competitor:\n- pricing: pricing model or specific prices if public. If none is publicly available, use exactly \"Not publicly available\".\n- key_features: 2 to 5 of their most notable products, features, or capabilities. Do not pad with generic filler.\n- positioning: how this competitor positions itself in the market (1-2 sentences).\n- recent_news: notable developments from roughly the last 12 months. If none found, use exactly [\"No significant recent news identified\"].\n-digital_presence: based on the pages you actually extracted, describe the competitor's digital and eCommerce capabilities.\n- threat_level: how much of a competitive threat they are to the target company. Must be exactly one of: High, Medium, Low.\n- sources: a list of the actual URLs you used (from search/extract). At least 1. Every claim must be grounded in a source.\n\nIf a focus area is specified, prioritize depth on that aspect — search and extract pages related to it, and let it shape what you report in key_features and positioning — while still filling the other categories at least minimally.\n\nWhen finished, output your FINAL ANSWER as a single raw JSON object and NOTHING else. No explanation, no markdown, no code fences, no text before or after. It must exactly match this shape:\n\n{\n  \"name\": \"string\",\n  \"pricing\": \"string\",\n  \"key_features\": [\"string\"],\n  \"positioning\": \"string\",\n  \"recent_news\": [\"string\"],\n  \"threat_level\": \"High | Medium | Low\",\n  \"sources\": [\"url string\"]\n}\n\nEnsure valid JSON: all strings quoted, no trailing commas, all braces and brackets closed.\nCRITICAL: Your JSON output MUST contain ALL of these keys with no exceptions: name, pricing, key_features, positioning, recent_news, digital_presence, threat_level, sources. If you have no information for a field, use its fallback value (e.g. \"Not assessed\" for digital_presence). NEVER omit a key.\n\nBe efficient with 5 tool calls cap. Make at most 5-6 total searches/extractions per competitor. Once you have enough information across all categories, STOP researching and output the final JSON immediately. Do not over-research.\n\n\nTOOL USAGE RULES (critical):\n- To search, call the Search tool with a non-empty \"query\" string describing what to find (e.g. \"Western Digital enterprise SSD pricing\").\n- To read a page, call the Extract tool with a valid \"url\" string (a full https:// URL you got from a prior Search result).\n- NEVER call a tool with empty or missing arguments. Search requires query; Extract requires url.\n- Always run Search first to get URLs, then Extract on the most useful URLs.",
+          "maxIterations": 7
+        }
+      },
+      "id": "f6b38688-7391-4fa5-8bf4-8befb1e0ba1e",
+      "name": "Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1664,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse EACH competitor's plain-text JSON output into a clean object.\nconst results = [];\n\nfor (const item of $input.all()) {\n  let raw = item.json.output ?? item.json.text ?? '';\n  if (typeof raw !== 'string') raw = JSON.stringify(raw);\n\n  raw = raw.replace(/```(?:json)?/gi, '').trim();\n  const firstBrace = raw.indexOf('{');\n  const lastBrace = raw.lastIndexOf('}');\n  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {\n    raw = raw.slice(firstBrace, lastBrace + 1);\n  }\n  raw = raw.replace(/,\\s*([}\\]])/g, '$1');\n\n  let parsed;\n  try {\n    parsed = JSON.parse(raw);\n  } catch (err) {\n    results.push({\n      json: {\n        name: item.json.competitor?.name ?? 'Unknown',\n        pricing: 'Not publicly available',\n        key_features: [],\n        positioning: 'Parse error — see _parse_error',\n        recent_news: ['No significant recent news identified'],\n        threat_level: 'Low',\n        sources: [],\n        _parse_error: err.message,\n        _raw_output: item.json.output ?? item.json.text ?? ''\n      }\n    });\n    continue;\n  }\n\n  // Normalize / guardrails\n  if (!Array.isArray(parsed.key_features)) parsed.key_features = [];\n  parsed.key_features = parsed.key_features.slice(0, 5);\n  if (!Array.isArray(parsed.recent_news) || parsed.recent_news.length === 0) {\n    parsed.recent_news = ['No significant recent news identified'];\n  }\n  if (!Array.isArray(parsed.sources)) parsed.sources = [];\n  if (!['High', 'Medium', 'Low'].includes(parsed.threat_level)) {\n    parsed.threat_level = 'Medium';\n  }\n  if (!parsed.pricing) parsed.pricing = 'Not publicly available';\n\n  results.push({ json: parsed });\n}\n\nreturn results;"
+      },
+      "id": "8690b87d-ac40-4b9d-b5b2-9ee39e016953",
+      "name": "Parse Competitor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten EACH competitor object into a single row for Google Sheets.\nconst results = [];\n\nlet target = '';\nlet industry = '';\nlet focus = '';\ntry {\n  const trigger = $('When Executed by Another Workflow').first().json;\n  target = trigger.target_company ?? '';\n  industry = trigger.inferred_industry ?? '';\n  focus = trigger.focus_area ?? '';\n} catch (e) { /* context not available, leave blank */ }\n\nfor (const item of $input.all()) {\n  const c = item.json;\n  results.push({\n    json: {\n      run_timestamp: new Date().toISOString(),\n      target_company: target,\n      inferred_industry: industry,\n      focus_area: focus,\n      competitor_name: c.name ?? '',\n      pricing: c.pricing ?? '',\n      key_features: Array.isArray(c.key_features) ? c.key_features.join('\\n') : (c.key_features ?? ''),\n      positioning: c.positioning ?? '',\n      recent_news: Array.isArray(c.recent_news) ? c.recent_news.join('\\n') : (c.recent_news ?? ''),\n      digital_presence: c.digital_presence ?? '',\n      threat_level: c.threat_level ?? '',\n      sources: Array.isArray(c.sources) ? c.sources.join('\\n') : (c.sources ?? ''),\n      parse_error: c._parse_error ?? '',\n      _competitor: c\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "83bc46c5-dc35-479f-8c98-a4f95f922718",
+      "name": "Prep Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        448
+      ],
+      "notes": "Flattens the competitor object into a flat row (arrays -> newline-joined strings) for Sheets, attaches target_company + timestamp. Keeps _competitor so Aggregate still sees structured data."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1fV9T7ycPHs6vec4HyTWUsQo2wEQalLgvvTmAbwzV8nU",
+          "mode": "list",
+          "cachedResultName": "Miagent briefings",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1fV9T7ycPHs6vec4HyTWUsQo2wEQalLgvvTmAbwzV8nU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1fV9T7ycPHs6vec4HyTWUsQo2wEQalLgvvTmAbwzV8nU/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "run_timestamp",
+              "displayName": "run_timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "target_company",
+              "displayName": "target_company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "inferred_industry",
+              "displayName": "inferred_industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "focus_area",
+              "displayName": "focus_area",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "competitor_name",
+              "displayName": "competitor_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pricing",
+              "displayName": "pricing",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "key_features",
+              "displayName": "key_features",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "positioning",
+              "displayName": "positioning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recent_news",
+              "displayName": "recent_news",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "digital_presence",
+              "displayName": "digital_presence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "threat_level",
+              "displayName": "threat_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sources",
+              "displayName": "sources",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "parse_error",
+              "displayName": "parse_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "_competitor",
+              "displayName": "_competitor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c395ab05-b396-48a6-9eae-a60d6b1a4b2e",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2272,
+        448
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "85yCdje3clswrp0a",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "TODO: 1) Attach Google Sheets credential. 2) Select spreadsheet + tab from dropdowns. 3) Create sheet first with header row: run_timestamp, target_company, inferred_industry, focus_area, competitor_name, pricing, key_features, positioning, recent_news, threat_level, sources, parse_error. Auto-maps by column name so headers must match. Runs once per competitor = one row each."
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "b52489f6-e1b6-425a-8d01-9feda5359410",
+      "name": "Aggregate Competitors",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2480,
+        448
+      ],
+      "notes": "Collects all per-competitor results back into a single item returned to the Discovery workflow."
+    },
+    {
+      "parameters": {
+        "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "5a4b3b78-abf2-44b6-9a04-e4d73c5d159c",
+      "name": "Nebius Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1584,
+        672
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "qFwA7pBIxAoU8De9",
+          "name": "OpenAI account 3"
+        }
+      },
+      "notes": "TODO: Attach the same OpenAI-type credential as discovery (Base URL = https://api.tokenfactory.nebius.com/v1, Nebius key). Temperature 0."
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {
+          "topic": "general",
+          "search_depth": "basic",
+          "max_results": 5
+        }
+      },
+      "id": "1be95e1c-4b8b-4b3b-bbb8-a29cd9ec186e",
+      "name": "Tavily Search",
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        672
+      ],
+      "credentials": {
+        "tavilyApi": {
+          "id": "D4SaDmj9W1N5fRfs",
+          "name": "Tavily account"
+        }
+      },
+      "notes": "TODO: Attach your Tavily credential. BASIC depth (1 credit/search) is used to FIND relevant pages cheaply; the Extract tool reads the important ones in full. If unrecognized on import, delete and re-add from your panel, reconnect to the Research Agent Tool input."
+    },
+    {
+      "parameters": {
+        "resource": "extract",
+        "urls": [
+          "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('urls0_URLs', ``, 'string') }}"
+        ],
+        "options": {}
+      },
+      "id": "f694a8e8-f470-4930-b35d-90b4cbccfa07",
+      "name": "Tavily Extract",
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        1952,
+        672
+      ],
+      "credentials": {
+        "tavilyApi": {
+          "id": "D4SaDmj9W1N5fRfs",
+          "name": "Tavily account"
+        }
+      },
+      "notes": "TODO: Attach the SAME Tavily credential. This is the Extract operation: given a specific URL, it returns that page's full clean content. The agent uses this to read a competitor's actual pricing/product page after finding the URL via Search. If the node imports with a different operation field name, set Resource/Operation to Extract manually. Connect to the Research Agent Tool input."
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        976,
+        448
+      ],
+      "id": "5c1a73c1-9685-4ca7-9bd5-cfd031df48e6",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reshape Aggregate output into the shape Synthesis expects.\nconst agg = $input.first().json;\n\n// Aggregate puts the competitor objects under \"data\"\nconst competitors = Array.isArray(agg.data) ? agg.data : [];\n\n// Strip the internal _competitor wrapper if present (each item may be {_competitor:{...}} or the object itself)\nconst cleanCompetitors = competitors.map(c => c._competitor ? c._competitor : c);\n\n// Pull the original context from the trigger\nlet target = '';\nlet industry = '';\nlet focus = '';\ntry {\n  const trigger = $('When Executed by Another Workflow').first().json;\n  target = trigger.target_company ?? '';\n  industry = trigger.inferred_industry ?? '';\n  focus = trigger.focus_area ?? '';\n} catch (e) { /* leave blank */ }\n\nreturn [{\n  json: {\n    target_company: target,\n    inferred_industry: industry,\n    focus_area: focus,\n    competitors: cleanCompetitors\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2304,
+        832
+      ],
+      "id": "d3598e23-13c7-4101-badf-0c8954809ef4",
+      "name": "Reshape for synthesis"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "X8LxQUx0C5xKtMUM",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/X8LxQUx0C5xKtMUM",
+          "cachedResultName": "My project — Discover MIagent-version1 - Synthesis PhaseRN"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "aNumber": 0
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "aField",
+              "displayName": "aField",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "aNumber",
+              "displayName": "aNumber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "thisFieldAcceptsAnyType",
+              "displayName": "thisFieldAcceptsAnyType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "anArray",
+              "displayName": "anArray",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2512,
+        832
+      ],
+      "id": "1ad929d0-17e6-4f7b-b8f1-325779078cfc",
+      "name": "Call 'Discover MIagent-version1 - Synthesis PhaseRN'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Split Competitors": {
+      "main": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Competitor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Competitor": {
+      "main": [
+        [
+          {
+            "node": "Prep Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Row": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Competitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nebius Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Search": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Extract": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Split Competitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Competitors": {
+      "main": [
+        [
+          {
+            "node": "Reshape for synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reshape for synthesis": {
+      "main": [
+        [
+          {
+            "node": "Call 'Discover MIagent-version1 - Synthesis PhaseRN'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f33861d4-f3c5-483e-ac6e-5d821a9a090c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "01fcb9fb97b3ebf0dede6f97c5fc33f2cdd542e39d684f6789db85e728189967"
+  },
+  "id": "gsw4IF5lA28KKN4K",
+  "tags": []
+}
