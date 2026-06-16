@@ -2,6 +2,8 @@
 
 > **AI-powered competitive intelligence — from company name to prescriptive briefing in minutes.**
 
+🚀 **[Live app → marketmirror-bc2iniappzoyvok8wbxph3o.streamlit.app](https://marketmirror-bc2iniappzoyvok8wbxph3o.streamlit.app/)**
+
 MarketMirror is a three-phase AI agent system built on [n8n](https://n8n.io) and surfaced through a Streamlit UI. Enter any company name and get back a full competitive landscape: who your rivals are, how they score across key dimensions, where the gaps are, and what to do about them.
 
 ---
@@ -48,6 +50,8 @@ User Input
 | 🎯 **Gaps & Recommendations** | Prioritised (High / Medium / Low) with evidence and the competitor driving each gap |
 | 🌐 **Digital / Ecommerce Gaps** | Separate section focused on online channel weaknesses |
 | ✨ **Sample preview** | Landing page shows a live radar chart with sample data before you run anything |
+| 🕵️ **Animated loader** | Fun spy-themed loading screen with cycling messages while the agent works |
+| 🤷 **Not-found fallback** | Clear error screen with retry guidance when a company can't be identified |
 
 ---
 
@@ -95,13 +99,17 @@ Open `discover_miagent_ui.py` and update line 89:
 N8N_WEBHOOK = "https://your-n8n-instance.app.n8n.cloud/webhook/discover-miagent"
 ```
 
-### 4. Run
+### 4. Run locally
 
 ```bash
 streamlit run discover_miagent_ui.py
 ```
 
 Open [http://localhost:8501](http://localhost:8501) in your browser.
+
+### Or use the hosted app
+
+**[marketmirror-bc2iniappzoyvok8wbxph3o.streamlit.app](https://marketmirror-bc2iniappzoyvok8wbxph3o.streamlit.app/)** — no setup needed.
 
 ---
 
@@ -136,6 +144,7 @@ The three workflows are chained — Discovery triggers Research, Research trigge
 | Webhook URL | `…/webhook-test/discover-miagent` | `…/webhook/discover-miagent` |
 | n8n trigger | Click **Listen for test event** before each submit | Workflows published and always-on |
 | Timeout | 120 s | 300 s |
+| Hosted UI | `localhost:8501` | [marketmirror-bc2iniappzoyvok8wbxph3o.streamlit.app](https://marketmirror-bc2iniappzoyvok8wbxph3o.streamlit.app/) |
 
 ---
 
