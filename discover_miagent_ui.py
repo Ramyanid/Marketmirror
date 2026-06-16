@@ -194,7 +194,13 @@ if not is_results:
       <h1>See your competition clearly.</h1>
       <p>Enter a company and MarketMirror discovers its closest rivals, researches each,
          and hands you a prescriptive briefing — strengths, gaps, and a feature scorecard.</p>
-      <a href="#run-a-free-analysis" class="hero-pill">✨ Try free basic analysis — results in less than 5 minutes</a>
+      <a href="#analysis-form" onclick="document.getElementById('analysis-form').scrollIntoView({behavior:'smooth'});return false;"
+         style="display:inline-flex;align-items:center;gap:8px;margin-top:18px;
+                background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);
+                padding:10px 20px;border-radius:999px;font-size:.9rem;font-weight:700;
+                color:#fff;text-decoration:none;cursor:pointer;transition:background .2s;">
+        ✨ Try free basic analysis — results in less than 5 minutes →
+      </a>
     </div>
     """, unsafe_allow_html=True)
     st.write("")
@@ -219,6 +225,7 @@ if not is_results:
     st.divider()
 
     # input form
+    st.markdown('<div id="analysis-form"></div>', unsafe_allow_html=True)
     st.subheader("Run a free analysis")
     st.caption("Enter a target company. Industry hint and focus area are optional.")
     c1, c2 = st.columns(2)
