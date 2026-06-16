@@ -134,13 +134,15 @@
   "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "availableInMCP": true
   },
   "versionId": "92430f62-e5d6-4271-902e-924c3acc9b13",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "01fcb9fb97b3ebf0dede6f97c5fc33f2cdd542e39d684f6789db85e728189967"
   },
+  "nodeGroups": [],
   "id": "X8LxQUx0C5xKtMUM",
   "tags": []
 }

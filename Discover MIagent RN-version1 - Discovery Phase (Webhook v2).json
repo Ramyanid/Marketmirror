@@ -157,13 +157,18 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "aNumber": 0
+            "target_company": "={{ $json.target_company }}",
+            "interpreted_as": "={{ $json.interpreted_as }}",
+            "inferred_industry": "={{ $json.inferred_industry }}",
+            "industry_hint": "={{ $json.industry_hint }}",
+            "focus_area": "={{ $json.focus_area }}",
+            "competitors": "={{ $json.competitors }}"
           },
           "matchingColumns": [],
           "schema": [
             {
-              "id": "aField",
-              "displayName": "aField",
+              "id": "target_company",
+              "displayName": "target_company",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -172,27 +177,48 @@
               "removed": false
             },
             {
-              "id": "aNumber",
-              "displayName": "aNumber",
+              "id": "interpreted_as",
+              "displayName": "interpreted_as",
               "required": false,
               "defaultMatch": false,
               "display": true,
               "canBeUsedToMatch": true,
-              "type": "number",
+              "type": "string",
               "removed": false
             },
             {
-              "id": "thisFieldAcceptsAnyType",
-              "displayName": "thisFieldAcceptsAnyType",
+              "id": "inferred_industry",
+              "displayName": "inferred_industry",
               "required": false,
               "defaultMatch": false,
               "display": true,
               "canBeUsedToMatch": true,
+              "type": "string",
               "removed": false
             },
             {
-              "id": "anArray",
-              "displayName": "anArray",
+              "id": "industry_hint",
+              "displayName": "industry_hint",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "focus_area",
+              "displayName": "focus_area",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "competitors",
+              "displayName": "competitors",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -202,7 +228,7 @@
             }
           ],
           "attemptToConvertTypes": false,
-          "convertFieldsToString": true
+          "convertFieldsToString": false
         },
         "options": {}
       },
@@ -252,7 +278,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\n  \"status\": \"not_found\",\n  \"message\": \"We couldn't identify \\\"{{ $json.target_company }}\\\" as a real company. Please check the spelling or add an industry hint.\"\n}",
+        "responseBody": "={{ JSON.stringify({ status: 'not_found', message: \"We couldn't identify \\\"\" + ($json.target_company || 'that company') + \"\\\" as a real company. Please check the spelling or add an industry hint.\" }) }}",
         "options": {
           "responseCode": 200
         }
@@ -374,11 +400,13 @@
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
-    "availableInMCP": false
+    "availableInMCP": true
   },
-  "versionId": "eea1b239-812e-49c1-9392-5eca2fe9a33e",
+  "versionId": "59948d44-67d7-4b86-b3ee-5c1a7cd9a3c0",
   "meta": {
     "templateCredsSetupCompleted": true,
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
     "instanceId": "01fcb9fb97b3ebf0dede6f97c5fc33f2cdd542e39d684f6789db85e728189967"
   },
   "nodeGroups": [],

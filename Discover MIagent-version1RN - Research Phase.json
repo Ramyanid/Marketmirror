@@ -4,6 +4,7 @@
     {
       "parameters": {
         "fieldToSplitOut": "competitors",
+        "include": "allOtherFields",
         "options": {
           "destinationFieldName": "competitor"
         }
@@ -38,8 +39,8 @@
         "promptType": "define",
         "text": "=Target company being analyzed: {{ $json.target_company }}\nIndustry: {{ $json.inferred_industry }}\nFocus area: {{ $json.focus_area || \"none specified — cover all categories evenly\" }}\n\nCompetitor to research: {{ $json.competitor.name }}\nWhy they compete: {{ $json.competitor.rationale }}",
         "options": {
-          "systemMessage": "You are a competitive intelligence researcher producing a profile of ONE competitor.\n\nYou have two tools:\n- Search (basic/cheap): finds web pages and returns snippets + URLs. Use it to DISCOVER which pages are relevant — pricing page, product/features pages, recent news.\n- Extract: given a specific URL, returns that page's full content. This is how you get real depth.\n\nWorkflow: Use Search first to locate the competitor's key pages. Then use Extract on the most valuable URLs — especially the pricing page and the main product/features page — to read them in full. Do not rely on search snippets alone for pricing and features; extract the actual pages. Search is for finding; Extract is for reading. Make several searches and extract 1-3 of the most important pages.\n\nExtract these categories about the competitor:\n- pricing: pricing model or specific prices if public. If none is publicly available, use exactly \"Not publicly available\".\n- key_features: 2 to 5 of their most notable products, features, or capabilities. Do not pad with generic filler.\n- positioning: how this competitor positions itself in the market (1-2 sentences).\n- recent_news: notable developments from roughly the last 12 months. If none found, use exactly [\"No significant recent news identified\"].\n-digital_presence: based on the pages you actually extracted, describe the competitor's digital and eCommerce capabilities.\n- threat_level: how much of a competitive threat they are to the target company. Must be exactly one of: High, Medium, Low.\n- sources: a list of the actual URLs you used (from search/extract). At least 1. Every claim must be grounded in a source.\n\nIf a focus area is specified, prioritize depth on that aspect — search and extract pages related to it, and let it shape what you report in key_features and positioning — while still filling the other categories at least minimally.\n\nWhen finished, output your FINAL ANSWER as a single raw JSON object and NOTHING else. No explanation, no markdown, no code fences, no text before or after. It must exactly match this shape:\n\n{\n  \"name\": \"string\",\n  \"pricing\": \"string\",\n  \"key_features\": [\"string\"],\n  \"positioning\": \"string\",\n  \"recent_news\": [\"string\"],\n  \"threat_level\": \"High | Medium | Low\",\n  \"sources\": [\"url string\"]\n}\n\nEnsure valid JSON: all strings quoted, no trailing commas, all braces and brackets closed.\nCRITICAL: Your JSON output MUST contain ALL of these keys with no exceptions: name, pricing, key_features, positioning, recent_news, digital_presence, threat_level, sources. If you have no information for a field, use its fallback value (e.g. \"Not assessed\" for digital_presence). NEVER omit a key.\n\nBe efficient with 5 tool calls cap. Make at most 5-6 total searches/extractions per competitor. Once you have enough information across all categories, STOP researching and output the final JSON immediately. Do not over-research.\n\n\nTOOL USAGE RULES (critical):\n- To search, call the Search tool with a non-empty \"query\" string describing what to find (e.g. \"Western Digital enterprise SSD pricing\").\n- To read a page, call the Extract tool with a valid \"url\" string (a full https:// URL you got from a prior Search result).\n- NEVER call a tool with empty or missing arguments. Search requires query; Extract requires url.\n- Always run Search first to get URLs, then Extract on the most useful URLs.",
-          "maxIterations": 7
+          "systemMessage": "You are a competitive intelligence researcher producing a profile of ONE competitor.\n\nYou have ONE tool:\n- Search: finds web pages and returns titles, snippets, and URLs. Use it to gather information about the competitor — what they do, their pricing, products, positioning, recent news, and digital presence.\n\nWorkflow: Make 2 to 4 focused searches to gather what you need (e.g. the competitor's pricing, their main products/features, recent news, their website/app). Base your answer on the search snippets and the URLs returned. You do NOT have a page-extraction tool — work from search results. Once you have enough across the categories, STOP searching and output your final JSON immediately. Do not exceed 5 searches.\n\nExtract these categories about the competitor:\n- pricing: pricing model or specific prices if found in search results. If none is available, use exactly \"Not publicly available\".\n- key_features: 2 to 5 of their most notable products, features, or capabilities. Do not pad with generic filler.\n- positioning: how this competitor positions itself in the market (1-2 sentences).\n- recent_news: notable developments from roughly the last 12 months. If none found, use exactly [\"No significant recent news identified\"].\n- digital_presence: based on what you find, describe the competitor's digital and eCommerce capabilities (website, app, online ordering). If unclear, use \"Not assessed\".\n- threat_level: how much of a competitive threat they are to the target company. Must be exactly one of: High, Medium, Low.\n- sources: a list of the actual URLs you used from search results. At least 1.\n\nIf a focus area is specified, prioritize depth on that aspect while still filling the other categories at least minimally.\n\nWhen finished, output your FINAL ANSWER as a single raw JSON object and NOTHING else. No explanation, no markdown, no code fences, no text before or after. It must exactly match this shape:\n\n{\n  \"name\": \"string\",\n  \"pricing\": \"string\",\n  \"key_features\": [\"string\"],\n  \"positioning\": \"string\",\n  \"recent_news\": [\"string\"],\n  \"digital_presence\": \"string\",\n  \"threat_level\": \"High | Medium | Low\",\n  \"sources\": [\"url string\"]\n}\n\nEnsure valid JSON: all strings quoted, no trailing commas, all braces and brackets closed. CRITICAL: Your JSON MUST contain ALL of these keys: name, pricing, key_features, positioning, recent_news, digital_presence, threat_level, sources. If you have no information for a field, use its fallback value. NEVER omit a key. Always produce the final JSON — never stop without it.\n\nTOOL USAGE RULES:\n- To search, call the Search tool with a non-empty \"query\" string (e.g. \"Uber Eats pricing and fees\").\n- NEVER call the tool with empty or missing arguments.",
+          "maxIterations": 12
         }
       },
       "id": "f6b38688-7391-4fa5-8bf4-8befb1e0ba1e",
@@ -333,6 +334,7 @@
           "name": "Tavily account"
         }
       },
+      "disabled": true,
       "notes": "TODO: Attach the SAME Tavily credential. This is the Extract operation: given a specific URL, it returns that page's full clean content. The agent uses this to read a competitor's actual pricing/product page after finding the URL via Search. If the node imports with a different operation field name, set Resource/Operation to Extract manually. Connect to the Research Agent Tool input."
     },
     {
@@ -371,54 +373,58 @@
           "cachedResultName": "My project — Discover MIagent-version1 - Synthesis PhaseRN"
         },
         "workflowInputs": {
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
           "mappingMode": "defineBelow",
-          "value": {
-            "aNumber": 0
-          },
           "matchingColumns": [],
           "schema": [
             {
-              "id": "aField",
-              "displayName": "aField",
-              "required": false,
+              "canBeUsedToMatch": true,
               "defaultMatch": false,
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
+              "displayName": "target_company",
+              "id": "target_company",
+              "removed": false,
+              "required": false,
+              "type": "string"
             },
             {
-              "id": "aNumber",
-              "displayName": "aNumber",
-              "required": false,
+              "canBeUsedToMatch": true,
               "defaultMatch": false,
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "number",
-              "removed": false
+              "displayName": "inferred_industry",
+              "id": "inferred_industry",
+              "removed": false,
+              "required": false,
+              "type": "string"
             },
             {
-              "id": "thisFieldAcceptsAnyType",
-              "displayName": "thisFieldAcceptsAnyType",
-              "required": false,
+              "canBeUsedToMatch": true,
               "defaultMatch": false,
               "display": true,
-              "canBeUsedToMatch": true,
-              "removed": false
+              "displayName": "focus_area",
+              "id": "focus_area",
+              "removed": false,
+              "required": false,
+              "type": "string"
             },
             {
-              "id": "anArray",
-              "displayName": "anArray",
-              "required": false,
+              "canBeUsedToMatch": true,
               "defaultMatch": false,
               "display": true,
-              "canBeUsedToMatch": true,
-              "type": "array",
-              "removed": false
+              "displayName": "competitors",
+              "id": "competitors",
+              "removed": false,
+              "required": false,
+              "type": "array"
             }
           ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
+          "value": {
+            "competitors": "={{ $json.competitors }}",
+            "focus_area": "={{ $json.focus_area }}",
+            "inferred_industry": "={{ $json.inferred_industry }}",
+            "target_company": "={{ $json.target_company }}"
+          }
         },
         "options": {}
       },
@@ -559,13 +565,17 @@
   "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "availableInMCP": true
   },
-  "versionId": "f33861d4-f3c5-483e-ac6e-5d821a9a090c",
+  "versionId": "9f4458fa-ec3e-4b1e-a71f-d75d77247cad",
   "meta": {
     "templateCredsSetupCompleted": true,
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
     "instanceId": "01fcb9fb97b3ebf0dede6f97c5fc33f2cdd542e39d684f6789db85e728189967"
   },
+  "nodeGroups": [],
   "id": "gsw4IF5lA28KKN4K",
   "tags": []
 }
