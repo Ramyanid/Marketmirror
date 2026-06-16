@@ -340,6 +340,29 @@ if is_results:
     if b.get("parse_error"):
         st.warning(f"Parse note: {b['parse_error']}")
 
+    # --- fallback: company not recognised ---
+    if not b.get("target_company") or not b.get("competitors"):
+        st.markdown("""
+        <div style="text-align:center;padding:48px 24px;background:#fff8f0;
+                    border:1px solid #fcd9b0;border-radius:16px;margin:16px 0;">
+          <div style="font-size:3rem;">🤷</div>
+          <h3 style="color:#b45309;font-family:Inter,sans-serif;margin:12px 0 6px;">
+            We couldn't find this company
+          </h3>
+          <p style="color:#92400e;max-width:480px;margin:0 auto;line-height:1.6;">
+            The agent couldn't confidently identify <strong>{company}</strong> or find direct competitors.
+            This usually means the name is ambiguous or very niche.
+          </p>
+          <p style="color:#92400e;margin:16px auto 0;max-width:480px;font-weight:600;">
+            💡 Try again with an <em>industry hint</em> — e.g. "life sciences" or "SaaS analytics"
+          </p>
+        </div>
+        """.format(company=b.get("target_company", "this company")), unsafe_allow_html=True)
+        if st.button("← Try again"):
+            st.session_state["_go_home"] = True
+            st.rerun()
+        st.stop()
+
     st.markdown(f'<div class="summary-box">{b.get("summary","—")}</div>', unsafe_allow_html=True)
     st.write(""); st.divider()
 
