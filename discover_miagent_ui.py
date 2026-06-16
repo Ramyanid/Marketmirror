@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 import requests
@@ -194,15 +195,34 @@ if not is_results:
       <h1>See your competition clearly.</h1>
       <p>Enter a company and MarketMirror discovers its closest rivals, researches each,
          and hands you a prescriptive briefing — strengths, gaps, and a feature scorecard.</p>
-      <a href="#analysis-form" onclick="document.getElementById('analysis-form').scrollIntoView({behavior:'smooth'});return false;"
+      <a id="hero-cta" href="#analysis-form"
          style="display:inline-flex;align-items:center;gap:8px;margin-top:18px;
                 background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);
                 padding:10px 20px;border-radius:999px;font-size:.9rem;font-weight:700;
-                color:#fff;text-decoration:none;cursor:pointer;transition:background .2s;">
+                color:#fff;text-decoration:none;cursor:pointer;">
         ✨ Try free basic analysis — results in less than 5 minutes →
       </a>
     </div>
     """, unsafe_allow_html=True)
+
+    # wire up smooth scroll for the CTA — runs in iframe with parent window access
+    components.html("""
+    <script>
+    (function() {
+      function wire() {
+        var link = window.parent.document.getElementById('hero-cta');
+        if (!link) { setTimeout(wire, 150); return; }
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          var target = window.parent.document.getElementById('analysis-form');
+          if (target) target.scrollIntoView({behavior: 'smooth', block: 'start'});
+        });
+      }
+      wire();
+    })();
+    </script>
+    """, height=0)
+
     st.write("")
 
     # landscape graph — sample until a real run exists, then real data
