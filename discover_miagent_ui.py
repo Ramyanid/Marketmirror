@@ -263,13 +263,65 @@ if not is_results:
         if not company.strip():
             st.error("Enter a target company to analyze.")
         else:
-            with st.spinner(f"Analyzing {company} — discovering and researching competitors…"):
-                try:
-                    st.session_state.briefing = run_analysis(company, industry_hint, focus_area)
-                    st.session_state["_go_results"] = True
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Couldn't complete the analysis: {e}")
+            loader = st.empty()
+            loader.markdown(f"""
+            <div style="text-align:center;padding:48px 24px;
+                        background:linear-gradient(135deg,#f5f3ff 0%,#eef2ff 100%);
+                        border-radius:20px;margin:12px 0;border:1px solid #e0e7ff;">
+              <div style="font-size:3.8rem;display:inline-block;animation:run 0.55s ease-in-out infinite alternate;">🕵️</div>
+              <h3 style="color:#4f46e5;font-family:Inter,sans-serif;margin:16px 0 4px;">
+                On the case for <em>{company}</em>…
+              </h3>
+              <div style="position:relative;height:26px;margin:14px auto;max-width:440px;">
+                <p class="fmsg" style="animation-delay:0s">🔍 Stalking competitors' websites…</p>
+                <p class="fmsg" style="animation-delay:3s">🤫 Bribing the AI for insider info…</p>
+                <p class="fmsg" style="animation-delay:6s">📊 Crunching numbers furiously…</p>
+                <p class="fmsg" style="animation-delay:9s">🧠 Reading their minds (legally)…</p>
+                <p class="fmsg" style="animation-delay:12s">☕ Making coffee while Tavily searches…</p>
+                <p class="fmsg" style="animation-delay:15s">✍️ Writing your prescriptive briefing…</p>
+              </div>
+              <div style="margin-top:22px;">
+                <span class="fdot" style="animation-delay:0s">●</span>
+                <span class="fdot" style="animation-delay:0.25s">●</span>
+                <span class="fdot" style="animation-delay:0.5s">●</span>
+              </div>
+            </div>
+            <style>
+            @keyframes run {{
+              from {{ transform: translateY(0) rotate(-5deg); }}
+              to   {{ transform: translateY(-18px) rotate(5deg); }}
+            }}
+            @keyframes msgcycle {{
+              0%   {{ opacity:0; transform:translateY(6px); }}
+              4%   {{ opacity:1; transform:translateY(0); }}
+              16%  {{ opacity:1; transform:translateY(0); }}
+              20%  {{ opacity:0; transform:translateY(-6px); }}
+              100% {{ opacity:0; }}
+            }}
+            @keyframes dotpop {{
+              0%,100% {{ opacity:.25; transform:translateY(0); }}
+              50%      {{ opacity:1;   transform:translateY(-7px); }}
+            }}
+            .fmsg {{
+              position:absolute; left:0; right:0; margin:0;
+              font-size:.95rem; color:#6366f1; font-weight:600;
+              opacity:0; animation:msgcycle 18s infinite;
+              font-family:Inter,-apple-system,sans-serif;
+            }}
+            .fdot {{
+              color:#a5b4fc; font-size:.55rem; margin:0 5px;
+              display:inline-block; animation:dotpop 1.1s ease-in-out infinite;
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+            try:
+                st.session_state.briefing = run_analysis(company, industry_hint, focus_area)
+                loader.empty()
+                st.session_state["_go_results"] = True
+                st.rerun()
+            except Exception as e:
+                loader.empty()
+                st.error(f"Couldn't complete the analysis: {e}")
 
 # ================= RESULTS =================
 if is_results:
